@@ -1,8 +1,4 @@
-use rfd::{
-    AsyncFileDialog, AsyncMessageDialog, MessageButtons,
-    MessageDialogResult::{self, Yes},
-    MessageLevel,
-};
+use rfd::{AsyncFileDialog, AsyncMessageDialog, MessageButtons, MessageDialogResult, MessageLevel};
 
 pub async fn open_dialog_choose_folder() -> String {
     let file_dialog = AsyncFileDialog::new();
