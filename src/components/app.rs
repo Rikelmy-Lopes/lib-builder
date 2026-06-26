@@ -6,7 +6,7 @@ use crate::fs::fs::{choose_folder, extract_binaries, get_7zip_executable, get_an
 use crate::utils::commands::{kill_process, spawn_7zip, spawn_ant_build};
 use crate::utils::output::{format_output, is_7zip_successful, is_build_successful};
 use iced::futures::channel::oneshot;
-use iced::widget::{Container, button, column, row, text_input};
+use iced::widget::{Container, button, column, row, text, text_input};
 use iced::window::Settings;
 use iced::{Alignment, Element, Length, Size, Task, Theme};
 
@@ -15,6 +15,7 @@ pub struct App {
     destination: String,
     theme: Theme,
     process_id: Arc<Mutex<i32>>,
+    is_running: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -45,8 +46,9 @@ impl App {
             Self {
                 source: String::new(),
                 destination: String::new(),
-                theme: iced::Theme::TokyoNight,
+                theme: iced::Theme::Oxocarbon,
                 process_id: Arc::new(Mutex::new(-1)),
+                is_running: false,
             },
             iced::Task::none(),
         )
@@ -87,6 +89,7 @@ impl App {
             Message::Execute => {
                 let (tx, rx) = oneshot::channel::<BuildEvents>();
                 let source = self.source.clone();
+                self.is_running = true;
 
                 let process_id = Arc::clone(&self.process_id);
 
@@ -142,10 +145,14 @@ impl App {
                     kill_process(&guard);
                 }
                 self.process_id = Arc::new(Mutex::new(-1));
+                self.is_running = false;
                 Task::none()
             }
 
-            Message::ExecuteCompleted(message) => Task::none(),
+            Message::ExecuteCompleted(message) => {
+                self.is_running = false;
+                Task::none()
+            }
             _ => Task::none(),
         }
     }
@@ -163,7 +170,7 @@ impl App {
         ]
         .spacing(20);
 
-        let column = column![
+        let mut column = column![
             row_source,
             row_destination,
             button("Executar").on_press(Message::Execute),
@@ -172,6 +179,10 @@ impl App {
         .spacing(20)
         .padding(10)
         .align_x(Alignment::Center);
+
+        if self.is_running {
+            column = column.push(text!("Executando..."));
+        }
 
         Container::new(column)
             .width(Length::Fill)
