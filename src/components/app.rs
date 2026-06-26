@@ -2,7 +2,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::fs::fs::{choose_folder, extract_binaries, get_7zip_executable, get_ant_executable};
+use crate::dialog::dialog::open_dialog_choose_folder;
+use crate::fs::paths::{get_7zip_executable, get_ant_executable};
+use crate::fs::utils::extract_binaries;
 use crate::utils::commands::{kill_process, spawn_7zip, spawn_ant_build};
 use crate::utils::output::{format_output, is_7zip_successful, is_build_successful};
 use iced::futures::channel::oneshot;
@@ -65,13 +67,13 @@ impl App {
                 Task::none()
             }
 
-            Message::ChooseSourceBegin => {
-                Task::perform(choose_folder(), |v| Message::ChooseSourceFinished(v))
-            }
+            Message::ChooseSourceBegin => Task::perform(open_dialog_choose_folder(), |v| {
+                Message::ChooseSourceFinished(v)
+            }),
 
-            Message::ChooseDestinationBegin => {
-                Task::perform(choose_folder(), |v| Message::ChooseDestinationFinished(v))
-            }
+            Message::ChooseDestinationBegin => Task::perform(open_dialog_choose_folder(), |v| {
+                Message::ChooseDestinationFinished(v)
+            }),
 
             Message::ChooseSourceFinished(path) => {
                 if !path.is_empty() {

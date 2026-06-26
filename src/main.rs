@@ -3,6 +3,7 @@ use crate::components::app::App;
 
 mod components;
 mod config;
+mod dialog;
 mod fs;
 mod utils;
 
