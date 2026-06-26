@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::thread::{self, sleep};
+use std::time::Duration;
 
 use crate::dialog::dialog::{open_dialog_choose_folder, show_info_message};
 use crate::fs::paths::{get_7zip_executable, get_ant_executable};
@@ -18,6 +19,7 @@ pub struct App {
     theme: Theme,
     process_id: Arc<Mutex<i32>>,
     is_running: bool,
+    message: String,
 }
 
 #[derive(Debug, Clone)]
@@ -32,6 +34,7 @@ pub enum Message {
     Cancel,
     ExecuteCompleted(BuildEvents),
     Dialog(()),
+    ClearMessage,
 }
 
 #[derive(Debug, Clone)]
@@ -52,6 +55,7 @@ impl App {
                 theme: iced::Theme::Oxocarbon,
                 process_id: Arc::new(Mutex::new(-1)),
                 is_running: false,
+                message: String::new(),
             },
             iced::Task::none(),
         )
@@ -90,6 +94,17 @@ impl App {
                 Task::none()
             }
             Message::Execute => {
+                if self.source.trim().is_empty() || self.destination.trim().is_empty() {
+                    self.message = "Origem e Destino não podem estar vazios!".to_string();
+
+                    return Task::perform(
+                        async {
+                            sleep(Duration::from_secs(3));
+                        },
+                        |_| Message::ClearMessage,
+                    );
+                }
+
                 let (tx, rx) = oneshot::channel::<BuildEvents>();
                 let source = self.source.clone();
                 self.is_running = true;
@@ -157,6 +172,11 @@ impl App {
                 self.is_running = false;
                 Task::none()
             }
+
+            Message::ClearMessage => {
+                self.message = "".to_string();
+                Task::none()
+            }
             _ => Task::none(),
         }
     }
@@ -186,6 +206,10 @@ impl App {
 
         if self.is_running {
             column = column.push(text!("Executando..."));
+        }
+
+        if !self.message.is_empty() {
+            column = column.push(text!("{}", self.message));
         }
 
         Container::new(column)
