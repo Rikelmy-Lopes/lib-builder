@@ -5,7 +5,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 
-pub fn spawn_ant_build(ant_path: &PathBuf, source_project_path: &str) -> Child {
+pub fn spawn_ant_build(ant_path: &PathBuf, source_project_path: &PathBuf) -> Child {
     Command::new(ant_path)
         .arg("-q")
         .arg("-f")
@@ -21,7 +21,7 @@ pub fn spawn_ant_build(ant_path: &PathBuf, source_project_path: &str) -> Child {
         .expect("Falha ao executar o Apache Ant. Verifique se o caminho está correto.")
 }
 
-pub fn spawn_7zip(seven_zip_path: &PathBuf, build_file_path: &str) -> Child {
+pub fn spawn_7zip(seven_zip_path: &PathBuf, build_file_path: &PathBuf) -> Child {
     Command::new(seven_zip_path)
         .arg("d")
         .arg(build_file_path)
@@ -34,7 +34,10 @@ pub fn spawn_7zip(seven_zip_path: &PathBuf, build_file_path: &str) -> Child {
         .expect("Falha ao executar o 7zip.")
 }
 
-pub fn kill_process(pid: &u32) -> bool {
+pub fn kill_process(pid: &i32) -> bool {
+    if *pid == -1 {
+        return false;
+    }
     let result = Command::new("taskkill")
         .args(["/f", "/pid", &pid.to_string(), "/t"])
         .creation_flags(CREATE_NO_WINDOW_FLAG)

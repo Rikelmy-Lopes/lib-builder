@@ -1,10 +1,8 @@
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::fs::fs::{
-    choose_folder, extract_binaries, get_7zip_executable, get_ant_executable,
-    get_extract_binaries_size,
-};
+use crate::fs::fs::{choose_folder, extract_binaries, get_7zip_executable, get_ant_executable};
 use crate::utils::commands::{kill_process, spawn_7zip, spawn_ant_build};
 use crate::utils::output::{format_output, is_7zip_successful, is_build_successful};
 use iced::futures::channel::oneshot;
@@ -16,7 +14,7 @@ pub struct App {
     source: String,
     destination: String,
     theme: Theme,
-    process_id: u32,
+    process_id: Arc<Mutex<i32>>,
 }
 
 #[derive(Debug, Clone)]
@@ -29,15 +27,15 @@ pub enum Message {
     ChooseDestinationFinished(String),
     Execute,
     Cancel,
-    ExecuteCompleted(Events),
+    ExecuteCompleted(BuildEvents),
 }
 
 #[derive(Debug, Clone)]
-pub enum Events {
-    UNKNOWN_ERROR,
-    ANT_ERROR,
-    SEVEN_ZIP_ERROR,
-    SUCCESS,
+pub enum BuildEvents {
+    UnknownError,
+    AntError,
+    SevenZipError,
+    Success,
 }
 
 impl App {
@@ -48,7 +46,7 @@ impl App {
                 source: String::new(),
                 destination: String::new(),
                 theme: iced::Theme::TokyoNight,
-                process_id: 0,
+                process_id: Arc::new(Mutex::new(-1)),
             },
             iced::Task::none(),
         )
@@ -87,8 +85,10 @@ impl App {
                 Task::none()
             }
             Message::Execute => {
-                let (tx, rx) = oneshot::channel::<Events>();
-                let source_project = self.source.clone();
+                let (tx, rx) = oneshot::channel::<BuildEvents>();
+                let source = self.source.clone();
+
+                let process_id = Arc::clone(&self.process_id);
 
                 Task::perform(
                     async move {
@@ -96,41 +96,52 @@ impl App {
                             let ant_path = get_ant_executable();
                             let seven_zip_path = get_7zip_executable();
 
-                            let child = spawn_ant_build(&ant_path, &source_project);
+                            let child = spawn_ant_build(&ant_path, &PathBuf::from(&source));
+
+                            {
+                                if let Ok(mut guard) = process_id.lock() {
+                                    *guard = child.id() as i32;
+                                }
+                            }
 
                             let formatted_output = format_output(child.wait_with_output().unwrap());
                             println!("{}", formatted_output);
 
                             if !is_build_successful(&formatted_output) {
-                                let _ = tx.send(Events::ANT_ERROR);
+                                let _ = tx.send(BuildEvents::AntError);
                                 return; // Encerra a thread mais cedo em caso de erro
                             }
 
-                            let build_file_path =
-                                PathBuf::from(&source_project).join("dist/SIGP_INT.jar");
-                            let child =
-                                spawn_7zip(&seven_zip_path, build_file_path.to_str().unwrap());
+                            let build_file_path = PathBuf::from(&source).join("dist/SIGP_INT.jar");
+                            let child = spawn_7zip(&seven_zip_path, &build_file_path);
 
-                            //let pid = child.id();
+                            {
+                                if let Ok(mut guard) = process_id.lock() {
+                                    *guard = child.id() as i32;
+                                }
+                            }
 
                             let formatted_output = format_output(child.wait_with_output().unwrap());
                             println!("{}", formatted_output);
+
                             if !is_7zip_successful(&formatted_output) {
-                                let _ = tx.send(Events::SEVEN_ZIP_ERROR);
+                                let _ = tx.send(BuildEvents::SevenZipError);
                                 return;
                             }
 
-                            let _ = tx.send(Events::SUCCESS);
+                            let _ = tx.send(BuildEvents::Success);
                         });
 
-                        rx.await.unwrap_or_else(|_| Events::UNKNOWN_ERROR)
+                        rx.await.unwrap_or_else(|_| BuildEvents::UnknownError)
                     },
                     Message::ExecuteCompleted,
                 )
             }
             Message::Cancel => {
-                get_extract_binaries_size();
-                kill_process(&self.process_id);
+                if let Ok(guard) = self.process_id.lock() {
+                    kill_process(&guard);
+                }
+                self.process_id = Arc::new(Mutex::new(-1));
                 Task::none()
             }
 
