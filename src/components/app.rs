@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::dialog::dialog::open_dialog_choose_folder;
+use crate::dialog::dialog::{open_dialog_choose_folder, show_info_message};
 use crate::fs::paths::{get_7zip_executable, get_ant_executable};
 use crate::fs::utils::extract_binaries;
 use crate::utils::commands::{kill_process, spawn_7zip, spawn_ant_build};
@@ -31,6 +31,7 @@ pub enum Message {
     Execute,
     Cancel,
     ExecuteCompleted(BuildEvents),
+    Dialog(()),
 }
 
 #[derive(Debug, Clone)]
@@ -148,7 +149,8 @@ impl App {
                 }
                 self.process_id = Arc::new(Mutex::new(-1));
                 self.is_running = false;
-                Task::none()
+
+                Task::perform(show_info_message("Concluido com Sucesso"), Message::Dialog)
             }
 
             Message::ExecuteCompleted(message) => {
